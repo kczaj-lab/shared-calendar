@@ -1,0 +1,49 @@
+rules_version = '2';
+
+// Firestore security rules for Shared Calendar.
+// Paste into: Firebase console → Firestore Database → Rules → Publish.
+//
+// Who can do what:
+//  - Only approved members (a document in /members/{uid}) can read anything.
+//  - Members are approved by the owner in the Firebase console; the app can never write /members.
+//  - Every member can read all entries; create/edit/delete only their own entries.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isMember() {
+      return signedIn() && exists(/databases/$(database)/documents/members/$(request.auth.uid));
+    }
+
+    function validEntry(d) {
+      return d.keys().hasOnly(['uid', 'date', 'start', 'end', 'note'])
+        && d.keys().hasAll(['uid', 'date', 'start', 'end', 'note'])
+        && d.uid == request.auth.uid
+        && d.date is string && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && d.start is string && d.start.matches('^[0-9]{2}:[0-9]{2}$')
+        && d.end is string && d.end.matches('^[0-9]{2}:[0-9]{2}$')
+        && d.end > d.start
+        && d.note is string && d.note.size() <= 80;
+    }
+
+    match /members/{uid} {
+      // A signed-in user may check their own approval status; members may see the member list.
+      allow read: if (signedIn() && request.auth.uid == uid) || isMember();
+      allow write: if false;
+    }
+
+    match /entries/{entryId} {
+      allow read: if isMember();
+      allow create: if isMember() && validEntry(request.resource.data);
+      allow update: if isMember()
+        && resource.data.uid == request.auth.uid
+        && validEntry(request.resource.data);
+      allow delete: if isMember() && resource.data.uid == request.auth.uid;
+    }
+
+    // Everything else is closed.
+  }
+}

@@ -1,4 +1,5 @@
-'use strict';
+// ES module (strict mode by default). availability.js is loaded before it as a classic script.
+import * as cloud from './cloud.js';
 
 /* ==========================================================
    Configuration
@@ -19,9 +20,7 @@ const DURATIONS = [1, 2, 3]; // minimum meeting length in hours
 const DOW_SHORT = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Nd'];
 
 const STORAGE_KEYS = {
-  currentUser: 'sc.currentUser',
-  minDuration: 'sc.minDuration',
-  entries: 'sc.entries',
+  minDuration: 'sc.minDuration', // per-device preference only; entries live in Firestore
 };
 
 /* ==========================================================
@@ -71,8 +70,8 @@ function escapeHtml(text) {
 }
 
 /* ==========================================================
-   Entries store (busy time slots)
-   Entry shape: { id, userId, date: "YYYY-MM-DD", start: "HH:MM", end: "HH:MM", note }
+   Entries store — an in-memory copy of the visible week, kept in sync with Firestore.
+   Entry shape: { id, uid, userId (= person: kasia/emilia/ola), date: "YYYY-MM-DD", start: "HH:MM", end: "HH:MM", note }
    ========================================================== */
 const TIME_RE = /^\d{2}:\d{2}$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -87,27 +86,14 @@ function isValidEntry(e) {
 
 const entryStore = {
   list: [],
-  load() {
-    const raw = storage.get(STORAGE_KEYS.entries, []);
-    this.list = Array.isArray(raw) ? raw.filter(isValidEntry) : [];
+  setFromCloud(docs) {
+    this.list = docs
+      .map(d => ({ ...d, userId: state.members[d.uid], note: d.note || '' }))
+      .filter(isValidEntry);
   },
-  save() { storage.set(STORAGE_KEYS.entries, this.list); },
   forDate(dateKey) { return this.list.filter(e => e.date === dateKey); },
   get(id) { return this.list.find(e => e.id === id); },
-  upsert(entry) {
-    const i = this.list.findIndex(e => e.id === entry.id);
-    if (i === -1) this.list.push(entry); else this.list[i] = entry;
-    this.save();
-  },
-  remove(id) {
-    this.list = this.list.filter(e => e.id !== id);
-    this.save();
-  },
 };
-
-function newId() {
-  return (crypto.randomUUID && crypto.randomUUID()) || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
 
 /* Place overlapping entries side by side: returns entries with col / cols */
 function layoutDay(items) {
@@ -156,10 +142,11 @@ const today = new Date();
 const state = {
   weekStart: startOfWeek(today),
   selectedDay: dayIndex(today), // used on mobile (one day visible)
-  currentUser: storage.get(STORAGE_KEYS.currentUser, USERS[0].id),
+  uid: null,          // Firebase user id of the signed-in person
+  currentUser: null,  // person id: kasia / emilia / ola (from /members)
+  members: {},        // uid -> person id
   minDuration: storage.get(STORAGE_KEYS.minDuration, 1),
 };
-if (!USERS.some(u => u.id === state.currentUser)) state.currentUser = USERS[0].id;
 if (!DURATIONS.includes(state.minDuration)) state.minDuration = 1;
 
 const $ = id => document.getElementById(id);
@@ -170,17 +157,11 @@ const $ = id => document.getElementById(id);
 function userStyle(u) { return `--user-color:${u.color};--user-ink:${u.ink}`; }
 
 function renderUsers() {
-  $('userSwitcher').innerHTML = USERS.map(u => {
-    const active = u.id === state.currentUser;
-    return `
-      <button class="user-btn" role="radio" aria-checked="${active}" data-user="${u.id}" style="${userStyle(u)}">
-        <span class="avatar">${u.name[0]}</span>
-        <span class="user-text">
-          <span class="user-name">${u.name}</span>
-          ${active ? '<span class="user-me">to ja</span>' : ''}
-        </span>
-      </button>`;
-  }).join('');
+  const u = userById(state.currentUser);
+  $('meUser').style.cssText = userStyle(u);
+  $('meUser').innerHTML = `
+    <span class="avatar">${u.name[0]}</span>
+    <span class="user-text"><span class="user-name">${u.name}</span><span class="user-me">to ja</span></span>`;
 }
 
 function renderLegend() {
@@ -405,7 +386,7 @@ function goToWeek(offsetWeeks) {
   state.weekStart = addDays(state.weekStart, offsetWeeks * 7);
   renderWeekRange();
   renderDayStrip();
-  renderCalendar();
+  subscribeWeek(); // renders the calendar now and again when data arrives
 }
 
 $('prevWeek').addEventListener('click', () => goToWeek(-1));
@@ -414,15 +395,6 @@ $('todayBtn').addEventListener('click', () => {
   state.weekStart = startOfWeek(new Date());
   state.selectedDay = dayIndex(new Date());
   goToWeek(0);
-});
-
-$('userSwitcher').addEventListener('click', e => {
-  const btn = e.target.closest('[data-user]');
-  if (!btn) return;
-  state.currentUser = btn.dataset.user;
-  storage.set(STORAGE_KEYS.currentUser, state.currentUser);
-  renderUsers();
-  renderCalendar(); // "mine" highlighting changes
 });
 
 // Calendar clicks: an entry (edit) or an empty slot (add, prefilled)
@@ -554,16 +526,27 @@ $('entryForm').addEventListener('submit', e => {
     return;
   }
 
-  entryStore.upsert({ id: editingId || newId(), userId: state.currentUser, date, start, end, note });
+  // Firestore shows the change instantly (local cache) and syncs it in the background
+  const data = { date, start, end, note };
+  const write = editingId
+    ? cloud.updateEntry(editingId, data)
+    : cloud.createEntry({ uid: state.uid, ...data });
+  write.catch(err => {
+    console.error(err);
+    showToast('Nie udało się zapisać. Sprawdź internet i spróbuj ponownie.');
+  });
   closeEntryDialog();
 
   // Jump to the week of the saved entry
   const d = parseDateKey(date);
-  state.weekStart = startOfWeek(d);
   state.selectedDay = dayIndex(d);
-  renderWeekRange();
-  renderDayStrip();
-  renderCalendar();
+  if (toDateKey(startOfWeek(d)) !== toDateKey(state.weekStart)) {
+    state.weekStart = startOfWeek(d);
+    goToWeek(0);
+  } else {
+    renderDayStrip();
+    renderCalendar();
+  }
   showToast(editingId ? 'Zmiany zapisane.' : 'Zajęcie dodane.');
 });
 
@@ -574,9 +557,11 @@ $('deleteBtn').addEventListener('click', () => {
     $('deleteBtn').querySelector('span').textContent = 'Na pewno?';
     return;
   }
-  entryStore.remove(editingId);
+  cloud.deleteEntry(editingId).catch(err => {
+    console.error(err);
+    showToast('Nie udało się usunąć. Sprawdź internet i spróbuj ponownie.');
+  });
   closeEntryDialog();
-  renderCalendar();
   showToast('Wpis usunięty.');
 });
 
@@ -588,7 +573,120 @@ const openNew = () => openEntryDialog(null);
 $('addBtn').addEventListener('click', openNew);
 $('fab').addEventListener('click', openNew);
 
-setInterval(renderNowLine, 60 * 1000);
+setInterval(() => { if (state.currentUser) renderNowLine(); }, 60 * 1000);
 
-entryStore.load();
-render();
+/* ==========================================================
+   Cloud sync: entries of the visible week
+   ========================================================== */
+let unsubscribeEntries = null;
+
+function subscribeWeek() {
+  if (unsubscribeEntries) unsubscribeEntries();
+  entryStore.list = [];
+  renderCalendar();
+  const from = toDateKey(state.weekStart);
+  const to = toDateKey(addDays(state.weekStart, 6));
+  unsubscribeEntries = cloud.watchEntries(from, to, docs => {
+    entryStore.setFromCloud(docs);
+    renderCalendar();
+  }, err => {
+    console.error(err);
+    showToast('Problem z połączeniem z kalendarzem. Odśwież stronę.');
+  });
+}
+
+function stopSync() {
+  if (unsubscribeEntries) { unsubscribeEntries(); unsubscribeEntries = null; }
+}
+
+/* ==========================================================
+   Screens: gate (loading / sign-in / pending / error) or the app
+   ========================================================== */
+const GATE_VIEWS = ['gateLoading', 'gateSignIn', 'gatePending', 'gateError'];
+
+function showGate(viewId) {
+  $('appScreen').hidden = true;
+  $('fab').hidden = true;
+  $('gate').hidden = false;
+  GATE_VIEWS.forEach(id => { $(id).hidden = id !== viewId; });
+}
+
+function showApp() {
+  $('gate').hidden = true;
+  $('appScreen').hidden = false;
+  $('fab').hidden = false;
+}
+
+function showError(err) {
+  console.error(err);
+  const code = err && err.code ? ` (${err.code})` : '';
+  $('errorText').textContent = `Spróbuj odświeżyć stronę. Jeśli problem wraca, przekaż Kasi ten kod błędu${code}.`;
+  showGate('gateError');
+}
+
+let unsubscribeMembership = null;
+
+cloud.watchAuth(user => {
+  if (unsubscribeMembership) { unsubscribeMembership(); unsubscribeMembership = null; }
+  stopSync();
+  state.uid = null;
+  state.currentUser = null;
+
+  if (!user) { showGate('gateSignIn'); return; }
+
+  state.uid = user.uid;
+  showGate('gateLoading');
+
+  // Live: when the owner approves the account in the console, the app opens by itself
+  unsubscribeMembership = cloud.watchMembership(user.uid, async member => {
+    const person = member && member.name;
+    if (!USERS.some(u => u.id === person)) {
+      stopSync();
+      state.currentUser = null;
+      $('pendingEmail').textContent = user.email || '';
+      $('pendingUid').textContent = user.uid;
+      showGate('gatePending');
+      return;
+    }
+    if (state.currentUser === person) return; // already running
+    try {
+      state.members = await cloud.loadMembers();
+    } catch (err) {
+      showError(err);
+      return;
+    }
+    state.currentUser = person;
+    showApp();
+    renderUsers();
+    renderLegend();
+    renderWeekRange();
+    renderDayStrip();
+    renderDurationPicker();
+    subscribeWeek();
+  }, showError);
+});
+
+$('signInBtn').addEventListener('click', async () => {
+  try {
+    await cloud.signInWithGoogle();
+  } catch (err) {
+    if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') return;
+    console.error(err);
+    showToast(err.code === 'auth/popup-blocked'
+      ? 'Przeglądarka zablokowała okno logowania. Zezwól na wyskakujące okna i spróbuj ponownie.'
+      : `Nie udało się zalogować (${err.code || 'błąd'}).`);
+  }
+});
+
+document.addEventListener('click', e => {
+  if (e.target.closest('[data-signout]')) cloud.signOutUser();
+});
+
+$('copyUidBtn').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText($('pendingUid').textContent);
+    showToast('Skopiowano identyfikator.');
+  } catch {
+    showToast('Nie udało się skopiować — zaznacz i skopiuj ręcznie.');
+  }
+});

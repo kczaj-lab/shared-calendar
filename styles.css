@@ -103,6 +103,42 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .user-name { font-weight: 500; }
 .user-me { font-size: 12px; color: var(--primary); }
 
+/* Signed-in user */
+.me { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.me-user {
+  display: flex; align-items: center; gap: 10px; min-width: 0;
+  padding: 8px 10px; border-radius: var(--radius-sm); flex: 1;
+  background: var(--lavender); border: 1px solid var(--lavender-border);
+}
+.me-user .user-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------- Gate (sign-in / pending / error) ---------- */
+.gate { min-height: 100vh; display: grid; place-items: center; padding: 24px 16px; }
+.gate-card {
+  width: min(400px, 100%); text-align: center;
+  background: rgba(255, 255, 255, .8); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, .9); border-radius: var(--radius-lg); box-shadow: var(--shadow);
+  padding: 32px 24px;
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+}
+.gate-icon { width: 48px; height: 48px; border-radius: 16px; }
+.gate-title { font-size: 20px; margin: 0; }
+.gate-view { display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%; }
+.gate-text { margin: 0; color: var(--text-2); }
+.gate-text strong { color: var(--text); }
+.google-btn {
+  height: 46px; padding: 0 20px; width: 100%; justify-content: center;
+  background: #fff; border-color: var(--line); font-weight: 600;
+  box-shadow: 0 1px 3px rgba(41, 37, 54, .08);
+}
+.google-btn:hover { background: var(--lavender); border-color: var(--lavender-border); }
+.uid-box {
+  width: 100%; padding: 12px; border-radius: var(--radius-sm);
+  background: var(--line-soft); display: flex; flex-direction: column; gap: 8px; align-items: center;
+}
+.uid-label { font-size: 12px; color: var(--text-2); }
+.uid-box code { font-size: 13px; word-break: break-all; color: var(--text); }
+
 .legend { list-style: none; margin: 0; padding: 0 6px; display: flex; flex-direction: column; gap: 10px; }
 .legend li { display: flex; align-items: center; gap: 10px; color: var(--text-2); }
 .swatch {
@@ -419,11 +455,8 @@ dialog.sheet::backdrop { background: rgba(41, 37, 54, .25); backdrop-filter: blu
     padding: 10px 12px; gap: 12px;
   }
   .brand-name, .legend-section, .sidebar .section-label { display: none; }
-  .user-switcher { flex-direction: row; gap: 4px; }
-  .user-btn { flex-direction: column; gap: 2px; padding: 4px 6px; min-width: 52px; align-items: center; }
-  .user-me { display: none; }
-  .user-name { font-size: 12px; }
-  .avatar { width: 36px; height: 36px; }
+  .sidebar-section { flex: 1; min-width: 0; }
+  .me-user { padding: 4px 10px 4px 4px; }
 
   .hint-card { padding: 10px 12px; gap: 10px; }
   .steps { flex-direction: column; gap: 6px; font-size: 12px; }
