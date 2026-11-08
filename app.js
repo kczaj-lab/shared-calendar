@@ -21,6 +21,7 @@ const DOW_SHORT = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Nd'];
 const STORAGE_KEYS = {
   currentUser: 'sc.currentUser',
   minDuration: 'sc.minDuration',
+  entries: 'sc.entries',
 };
 
 /* ==========================================================
@@ -56,6 +57,86 @@ function toDateKey(d) {
   return `${d.getFullYear()}-${mm}-${dd}`;
 }
 function pad2(n) { return String(n).padStart(2, '0'); }
+function parseDateKey(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/* Time helpers: "HH:MM" <-> minutes since midnight */
+function toMinutes(hhmm) { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; }
+function fromMinutes(min) { return `${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`; }
+
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"']/g, ch => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]
+  ));
+}
+
+/* ==========================================================
+   Entries store (busy time slots)
+   Entry shape: { id, userId, date: "YYYY-MM-DD", start: "HH:MM", end: "HH:MM", note }
+   ========================================================== */
+const TIME_RE = /^\d{2}:\d{2}$/;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function isValidEntry(e) {
+  return e && typeof e.id === 'string'
+    && USERS.some(u => u.id === e.userId)
+    && DATE_RE.test(e.date) && TIME_RE.test(e.start) && TIME_RE.test(e.end)
+    && toMinutes(e.end) > toMinutes(e.start)
+    && typeof e.note === 'string';
+}
+
+const entryStore = {
+  list: [],
+  load() {
+    const raw = storage.get(STORAGE_KEYS.entries, []);
+    this.list = Array.isArray(raw) ? raw.filter(isValidEntry) : [];
+  },
+  save() { storage.set(STORAGE_KEYS.entries, this.list); },
+  forDate(dateKey) { return this.list.filter(e => e.date === dateKey); },
+  get(id) { return this.list.find(e => e.id === id); },
+  upsert(entry) {
+    const i = this.list.findIndex(e => e.id === entry.id);
+    if (i === -1) this.list.push(entry); else this.list[i] = entry;
+    this.save();
+  },
+  remove(id) {
+    this.list = this.list.filter(e => e.id !== id);
+    this.save();
+  },
+};
+
+function newId() {
+  return (crypto.randomUUID && crypto.randomUUID()) || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+/* Place overlapping entries side by side: returns entries with col / cols */
+function layoutDay(items) {
+  const sorted = [...items].sort((a, b) => a.s - b.s || b.e - a.e);
+  const out = [];
+  let cluster = [];
+  let clusterEnd = -1;
+  const flush = () => {
+    const colEnds = [];
+    for (const it of cluster) {
+      let c = colEnds.findIndex(end => end <= it.s);
+      if (c === -1) { c = colEnds.length; colEnds.push(it.e); } else colEnds[c] = it.e;
+      it.col = c;
+    }
+    cluster.forEach(it => { it.cols = colEnds.length; });
+    out.push(...cluster);
+    cluster = [];
+    clusterEnd = -1;
+  };
+  for (const it of sorted) {
+    if (cluster.length && it.s >= clusterEnd) flush();
+    cluster.push(it);
+    clusterEnd = Math.max(clusterEnd, it.e);
+  }
+  if (cluster.length) flush();
+  return out;
+}
 
 function formatWeekRange(start) {
   const end = addDays(start, 6);
@@ -168,7 +249,47 @@ function renderCalendar() {
   }
 
   $('calendar').innerHTML = html;
+  renderEntries();
   renderNowLine();
+}
+
+function userById(id) { return USERS.find(u => u.id === id); }
+
+function renderEntries() {
+  const winStart = CONFIG.dayStartHour * 60;
+  const winEnd = CONFIG.dayEndHour * 60;
+  const h = slotHeight();
+  const pxPerMin = h / CONFIG.slotMinutes;
+
+  document.querySelectorAll('.day-col').forEach(col => {
+    const body = col.querySelector('.day-body');
+    const items = entryStore.forDate(col.dataset.date)
+      .map(e => ({ entry: e, s: Math.max(toMinutes(e.start), winStart), e: Math.min(toMinutes(e.end), winEnd) }))
+      .filter(it => it.e > it.s);
+
+    body.insertAdjacentHTML('beforeend', layoutDay(items).map(it => {
+      const { entry } = it;
+      const user = userById(entry.userId);
+      const mine = entry.userId === state.currentUser;
+      const short = it.e - it.s <= CONFIG.slotMinutes;
+      const time = `${entry.start}–${entry.end}`;
+      const style = [
+        `--user-color:${user.color}`, `--user-ink:${user.ink}`,
+        `top:${(it.s - winStart) * pxPerMin + 1}px`,
+        `height:${(it.e - it.s) * pxPerMin - 2}px`,
+        `left:calc(${(it.col / it.cols) * 100}% + 2px)`,
+        `width:calc(${100 / it.cols}% - 4px)`,
+      ].join(';');
+      const label = `${user.name}, ${time}${entry.note ? ', ' + entry.note : ''}`;
+      return `
+        <button class="event${mine ? ' is-mine' : ''}${short ? ' short' : ''}" data-entry="${entry.id}"
+                style="${style}" aria-label="${escapeHtml(label)}">
+          <span class="ev-name">${user.name}</span>
+          <span class="ev-time">${time}</span>
+          ${entry.note ? `<span class="ev-note">${escapeHtml(entry.note)}</span>` : ''}
+        </button>`;
+    }).join(''));
+  });
 }
 
 function slotHeight() {
@@ -250,6 +371,30 @@ $('userSwitcher').addEventListener('click', e => {
   state.currentUser = btn.dataset.user;
   storage.set(STORAGE_KEYS.currentUser, state.currentUser);
   renderUsers();
+  renderCalendar(); // "mine" highlighting changes
+});
+
+// Calendar clicks: an entry (edit) or an empty slot (add, prefilled)
+$('calendar').addEventListener('click', e => {
+  const evBtn = e.target.closest('[data-entry]');
+  if (evBtn) {
+    const entry = entryStore.get(evBtn.dataset.entry);
+    if (!entry) return;
+    if (entry.userId !== state.currentUser) {
+      showToast(`To wpis: ${userById(entry.userId).name}. Możesz edytować tylko swoje wpisy.`);
+      return;
+    }
+    openEntryDialog(entry);
+    return;
+  }
+  const body = e.target.closest('.day-body');
+  if (!body) return;
+  const dateKey = body.closest('.day-col').dataset.date;
+  const y = e.clientY - body.getBoundingClientRect().top;
+  const slotIdx = Math.max(0, Math.floor(y / slotHeight()));
+  const start = CONFIG.dayStartHour * 60 + slotIdx * CONFIG.slotMinutes;
+  const end = Math.min(start + 60, CONFIG.dayEndHour * 60);
+  openEntryDialog(null, { date: dateKey, start: fromMinutes(start), end: fromMinutes(end) });
 });
 
 $('dayStrip').addEventListener('click', e => {
@@ -269,10 +414,104 @@ $('durationPicker').addEventListener('click', e => {
   renderFreeList();
 });
 
-const comingSoon = () => showToast('Dodawanie wpisów pojawi się w następnym kroku.');
-$('addBtn').addEventListener('click', comingSoon);
-$('fab').addEventListener('click', comingSoon);
+/* ==========================================================
+   Entry dialog (add / edit / delete)
+   ========================================================== */
+const dialog = $('entryDialog');
+let editingId = null;
+let deleteArmed = false;
+
+function timeOptions(fromMin, toMin, selected) {
+  const opts = [];
+  for (let m = fromMin; m <= toMin; m += CONFIG.slotMinutes) {
+    const t = fromMinutes(m);
+    opts.push(`<option value="${t}"${t === selected ? ' selected' : ''}>${t}</option>`);
+  }
+  return opts.join('');
+}
+
+function openEntryDialog(entry, defaults = {}) {
+  const winStart = CONFIG.dayStartHour * 60;
+  const winEnd = CONFIG.dayEndHour * 60;
+  const user = userById(state.currentUser);
+  const values = entry || {
+    date: defaults.date || toDateKey(addDays(state.weekStart, state.selectedDay)),
+    start: defaults.start || fromMinutes(winStart),
+    end: defaults.end || fromMinutes(Math.min(winStart + 60, winEnd)),
+    note: '',
+  };
+
+  editingId = entry ? entry.id : null;
+  $('entryTitle').textContent = entry ? 'Edytuj zajętość' : 'Dodaj zajętość';
+  $('entryWho').style.cssText = userStyle(user);
+  $('entryWho').innerHTML = `<span class="avatar">${user.name[0]}</span><span>${user.name} — zajęta</span>`;
+  $('fDate').value = values.date;
+  $('fStart').innerHTML = timeOptions(winStart, winEnd - CONFIG.slotMinutes, values.start);
+  $('fEnd').innerHTML = timeOptions(winStart + CONFIG.slotMinutes, winEnd, values.end);
+  $('fNote').value = values.note || '';
+  $('formError').textContent = '';
+  $('deleteBtn').hidden = !entry;
+  resetDeleteButton();
+
+  dialog.showModal();
+}
+
+function closeEntryDialog() { dialog.close(); }
+
+function resetDeleteButton() {
+  deleteArmed = false;
+  $('deleteBtn').classList.remove('confirm');
+  $('deleteBtn').querySelector('span').textContent = 'Usuń';
+}
+
+$('entryForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const date = $('fDate').value;
+  const start = $('fStart').value;
+  const end = $('fEnd').value;
+  const note = $('fNote').value.trim();
+
+  if (!DATE_RE.test(date)) { $('formError').textContent = 'Wybierz datę.'; return; }
+  if (toMinutes(end) <= toMinutes(start)) {
+    $('formError').textContent = 'Godzina „Do” musi być późniejsza niż „Od”.';
+    return;
+  }
+
+  entryStore.upsert({ id: editingId || newId(), userId: state.currentUser, date, start, end, note });
+  closeEntryDialog();
+
+  // Jump to the week of the saved entry
+  const d = parseDateKey(date);
+  state.weekStart = startOfWeek(d);
+  state.selectedDay = dayIndex(d);
+  renderWeekRange();
+  renderDayStrip();
+  renderCalendar();
+  showToast(editingId ? 'Zmiany zapisane.' : 'Zajętość dodana.');
+});
+
+$('deleteBtn').addEventListener('click', () => {
+  if (!deleteArmed) {
+    deleteArmed = true;
+    $('deleteBtn').classList.add('confirm');
+    $('deleteBtn').querySelector('span').textContent = 'Na pewno?';
+    return;
+  }
+  entryStore.remove(editingId);
+  closeEntryDialog();
+  renderCalendar();
+  showToast('Wpis usunięty.');
+});
+
+$('cancelBtn').addEventListener('click', closeEntryDialog);
+$('closeDialog').addEventListener('click', closeEntryDialog);
+dialog.addEventListener('click', e => { if (e.target === dialog) closeEntryDialog(); }); // click on backdrop
+
+const openNew = () => openEntryDialog(null);
+$('addBtn').addEventListener('click', openNew);
+$('fab').addEventListener('click', openNew);
 
 setInterval(renderNowLine, 60 * 1000);
 
+entryStore.load();
 render();

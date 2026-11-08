@@ -76,6 +76,51 @@
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
   </button>
 
+  <!-- Add / edit busy time -->
+  <dialog class="sheet" id="entryDialog" aria-labelledby="entryTitle">
+    <form id="entryForm" novalidate>
+      <header class="sheet-head">
+        <h2 id="entryTitle">Dodaj zajętość</h2>
+        <button type="button" class="icon-btn" id="closeDialog" aria-label="Zamknij">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </header>
+
+      <div class="who" id="entryWho"></div>
+
+      <label class="field">
+        <span>Data</span>
+        <input type="date" id="fDate" required>
+      </label>
+      <div class="field-row">
+        <label class="field">
+          <span>Od</span>
+          <select id="fStart"></select>
+        </label>
+        <label class="field">
+          <span>Do</span>
+          <select id="fEnd"></select>
+        </label>
+      </div>
+      <label class="field">
+        <span>Opis <em>(opcjonalnie)</em></span>
+        <input type="text" id="fNote" maxlength="80" placeholder="np. praca, siłownia" autocomplete="off">
+      </label>
+
+      <p class="form-error" id="formError" role="alert"></p>
+
+      <footer class="sheet-actions">
+        <button type="button" class="btn btn-danger" id="deleteBtn" hidden>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>
+          <span>Usuń</span>
+        </button>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-ghost" id="cancelBtn">Anuluj</button>
+        <button type="submit" class="btn btn-primary">Zapisz</button>
+      </footer>
+    </form>
+  </dialog>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="app.js"></script>
