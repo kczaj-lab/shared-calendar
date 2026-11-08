@@ -167,6 +167,30 @@
           <select id="fEnd"></select>
         </label>
       </div>
+      <!-- Only when adding: repeat the entry -->
+      <div class="field-row" id="repeatRow">
+        <label class="field">
+          <span>Powtarzaj</span>
+          <select id="fRepeat">
+            <option value="none">Nie powtarzaj</option>
+            <option value="weekdays">W dni robocze (pon–pt)</option>
+            <option value="daily">Codziennie</option>
+            <option value="weekly">Co tydzień</option>
+          </select>
+        </label>
+        <label class="field" id="untilField" hidden>
+          <span>Do dnia</span>
+          <input type="date" id="fUntil">
+        </label>
+      </div>
+      <p class="field-hint" id="repeatHint" hidden></p>
+
+      <!-- Only when editing an entry that belongs to a series -->
+      <label class="check" id="seriesScope" hidden>
+        <input type="checkbox" id="fSeries">
+        <span>Dotyczy też kolejnych zajęć z tej serii <em id="seriesCount"></em></span>
+      </label>
+
       <label class="field">
         <span>Opis <em>(opcjonalnie)</em></span>
         <input type="text" id="fNote" maxlength="80" placeholder="np. praca, siłownia" autocomplete="off">

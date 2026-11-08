@@ -16,7 +16,7 @@ const USERS = [
   { id: 'ola',    name: 'Ola',    color: '#F9DFE8', ink: '#C24F7A' },
 ];
 
-const DURATIONS = [1, 2, 3]; // minimum meeting length in hours
+const DURATIONS = [2, 3]; // minimum meeting length in hours
 const DOW_SHORT = ['Pon', 'Wt', 'Śr', 'Czw', 'Pt', 'Sob', 'Nd'];
 
 const STORAGE_KEYS = {
@@ -145,9 +145,9 @@ const state = {
   uid: null,          // Firebase user id of the signed-in person
   currentUser: null,  // person id: kasia / emilia / ola (from /members)
   members: {},        // uid -> person id
-  minDuration: storage.get(STORAGE_KEYS.minDuration, 1),
+  minDuration: storage.get(STORAGE_KEYS.minDuration, DURATIONS[0]),
 };
-if (!DURATIONS.includes(state.minDuration)) state.minDuration = 1;
+if (!DURATIONS.includes(state.minDuration)) state.minDuration = DURATIONS[0]; // e.g. an old saved "1 h"
 
 const $ = id => document.getElementById(id);
 
@@ -467,8 +467,49 @@ $('freeList').addEventListener('click', e => {
    Entry dialog (add / edit / delete)
    ========================================================== */
 const dialog = $('entryDialog');
-let editingId = null;
+let editingEntry = null;
 let deleteArmed = false;
+const MAX_SERIES_DAYS = 366;
+
+function plural(n, one, few, many) {
+  if (n === 1) return one;
+  const d = n % 10, dd = n % 100;
+  return d >= 2 && d <= 4 && !(dd >= 12 && dd <= 14) ? few : many;
+}
+const zajec = n => `${n} ${plural(n, 'zajęcie', 'zajęcia', 'zajęć')}`;
+
+function newSeriesId() {
+  return (crypto.randomUUID && crypto.randomUUID()) || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+/* Returns an error message, or '' if the repeat settings are OK */
+function repeatError(date, mode, until) {
+  if (mode === 'none') return '';
+  if (!DATE_RE.test(until)) return 'Wybierz, do kiedy powtarzać.';
+  if (until < date) return 'Data „Do dnia” musi być taka sama lub późniejsza niż data zajęcia.';
+  if (until > toDateKey(addDays(parseDateKey(date), MAX_SERIES_DAYS))) return 'Seria może trwać najwyżej rok.';
+  if (!expandRecurrence(date, mode, until).length) return 'W wybranym okresie nie ma żadnego pasującego dnia.';
+  return '';
+}
+
+function updateRepeatUi() {
+  const mode = $('fRepeat').value;
+  const date = $('fDate').value;
+  const repeating = mode !== 'none';
+  $('untilField').hidden = !repeating;
+  $('repeatHint').hidden = !repeating;
+  if (!repeating) return;
+  if (DATE_RE.test(date)) $('fUntil').min = date;
+  const err = repeatError(date, mode, $('fUntil').value);
+  if (err) { $('repeatHint').textContent = err; return; }
+  $('repeatHint').textContent = `Zostanie dodanych: ${zajec(expandRecurrence(date, mode, $('fUntil').value).length)}.`;
+}
+
+/* Ids of my entries in the same series, from this entry's date onwards */
+async function followingInSeries(entry) {
+  const docs = await cloud.findSeries(entry.seriesId);
+  return docs.filter(d => d.uid === state.uid && d.date >= entry.date).map(d => d.id);
+}
 
 function timeOptions(fromMin, toMin, selected) {
   const opts = [];
@@ -490,8 +531,26 @@ function openEntryDialog(entry, defaults = {}) {
     note: '',
   };
 
-  editingId = entry ? entry.id : null;
+  editingEntry = entry || null;
   $('entryTitle').textContent = entry ? 'Edytuj zajęcie' : 'Dodaj zajęcie';
+
+  // Repeat: only when adding. Default end = 4 weeks later.
+  $('repeatRow').hidden = !!entry;
+  $('fRepeat').value = 'none';
+  $('fUntil').value = toDateKey(addDays(parseDateKey(values.date), 27));
+  updateRepeatUi();
+
+  // Series scope: only when editing an entry that belongs to a series
+  const inSeries = !!(entry && entry.seriesId);
+  $('seriesScope').hidden = !inSeries;
+  $('fSeries').checked = false;
+  $('fDate').disabled = false;
+  $('seriesCount').textContent = '';
+  if (inSeries) {
+    followingInSeries(entry)
+      .then(ids => { if (editingEntry === entry) $('seriesCount').textContent = `(${zajec(ids.length)} od tego dnia)`; })
+      .catch(err => console.error(err));
+  }
   $('entryWho').style.cssText = userStyle(user);
   $('entryWho').innerHTML = `<span class="avatar">${user.name[0]}</span><span>${user.name} — zajęta</span>`;
   $('fDate').value = values.date;
@@ -513,7 +572,19 @@ function resetDeleteButton() {
   $('deleteBtn').querySelector('span').textContent = 'Usuń';
 }
 
-$('entryForm').addEventListener('submit', e => {
+['fRepeat', 'fUntil', 'fDate'].forEach(id => $(id).addEventListener('change', updateRepeatUi));
+$('fSeries').addEventListener('change', () => {
+  // When editing the whole series, only times and description change — each entry keeps its own date
+  $('fDate').disabled = $('fSeries').checked;
+  if ($('fSeries').checked && editingEntry) $('fDate').value = editingEntry.date;
+});
+
+const saveFailed = err => {
+  console.error(err);
+  showToast('Nie udało się zapisać. Sprawdź internet i spróbuj ponownie.');
+};
+
+$('entryForm').addEventListener('submit', async e => {
   e.preventDefault();
   const date = $('fDate').value;
   const start = $('fStart').value;
@@ -526,15 +597,33 @@ $('entryForm').addEventListener('submit', e => {
     return;
   }
 
-  // Firestore shows the change instantly (local cache) and syncs it in the background
+  // Firestore shows changes instantly (local cache) and syncs them in the background
   const data = { date, start, end, note };
-  const write = editingId
-    ? cloud.updateEntry(editingId, data)
-    : cloud.createEntry({ uid: state.uid, ...data });
-  write.catch(err => {
-    console.error(err);
-    showToast('Nie udało się zapisać. Sprawdź internet i spróbuj ponownie.');
-  });
+  let message;
+  if (!editingEntry) {
+    const mode = $('fRepeat').value;
+    const until = $('fUntil').value;
+    const err = repeatError(date, mode, until);
+    if (err) { $('formError').textContent = err; return; }
+    if (mode === 'none') {
+      cloud.createEntry({ uid: state.uid, ...data }).catch(saveFailed);
+      message = 'Zajęcie dodane.';
+    } else {
+      const seriesId = newSeriesId();
+      const dates = expandRecurrence(date, mode, until);
+      cloud.createEntries(dates.map(d => ({ uid: state.uid, ...data, date: d, seriesId }))).catch(saveFailed);
+      message = `Dodano ${zajec(dates.length)}.`;
+    }
+  } else if ($('fSeries').checked) {
+    try {
+      const ids = await followingInSeries(editingEntry);
+      cloud.updateEntries(ids, { start, end, note }).catch(saveFailed);
+      message = `Zmieniono ${zajec(ids.length)}.`;
+    } catch (err) { saveFailed(err); return; }
+  } else {
+    cloud.updateEntry(editingEntry.id, data).catch(saveFailed);
+    message = 'Zmiany zapisane.';
+  }
   closeEntryDialog();
 
   // Jump to the week of the saved entry
@@ -547,22 +636,31 @@ $('entryForm').addEventListener('submit', e => {
     renderDayStrip();
     renderCalendar();
   }
-  showToast(editingId ? 'Zmiany zapisane.' : 'Zajęcie dodane.');
+  showToast(message);
 });
 
-$('deleteBtn').addEventListener('click', () => {
+$('deleteBtn').addEventListener('click', async () => {
   if (!deleteArmed) {
     deleteArmed = true;
     $('deleteBtn').classList.add('confirm');
     $('deleteBtn').querySelector('span').textContent = 'Na pewno?';
     return;
   }
-  cloud.deleteEntry(editingId).catch(err => {
+  const deleteFailed = err => {
     console.error(err);
     showToast('Nie udało się usunąć. Sprawdź internet i spróbuj ponownie.');
-  });
+  };
+  if ($('fSeries').checked) {
+    try {
+      const ids = await followingInSeries(editingEntry);
+      cloud.deleteEntries(ids).catch(deleteFailed);
+      showToast(`Usunięto ${zajec(ids.length)}.`);
+    } catch (err) { deleteFailed(err); return; }
+  } else {
+    cloud.deleteEntry(editingEntry.id).catch(deleteFailed);
+    showToast('Wpis usunięty.');
+  }
   closeEntryDialog();
-  showToast('Wpis usunięty.');
 });
 
 $('cancelBtn').addEventListener('click', closeEntryDialog);

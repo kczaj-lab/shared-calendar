@@ -11,6 +11,26 @@ function fromMinutes(min) {
   return `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 }
 
+/**
+ * Dates of a repeating entry, as "YYYY-MM-DD" keys (inclusive range).
+ * mode: "none" | "daily" | "weekdays" (Mon–Fri) | "weekly" (same weekday)
+ * Uses UTC day arithmetic, so daylight-saving changes cannot shift dates.
+ */
+function expandRecurrence(startKey, mode, untilKey, maxCount = 366) {
+  if (mode === 'none') return [startKey];
+  const DAY = 24 * 60 * 60 * 1000;
+  const toUtc = key => { const [y, m, d] = key.split('-').map(Number); return Date.UTC(y, m - 1, d); };
+  const toKey = t => new Date(t).toISOString().slice(0, 10);
+  const step = mode === 'weekly' ? 7 * DAY : DAY;
+  const out = [];
+  for (let t = toUtc(startKey), end = toUtc(untilKey); t <= end && out.length < maxCount; t += step) {
+    const dow = new Date(t).getUTCDay(); // 0 = Sunday, 6 = Saturday
+    if (mode === 'weekdays' && (dow === 0 || dow === 6)) continue;
+    out.push(toKey(t));
+  }
+  return out;
+}
+
 /* Merge overlapping or touching intervals [{s, e}] (minutes) */
 function mergeIntervals(intervals) {
   const sorted = [...intervals].sort((a, b) => a.s - b.s);

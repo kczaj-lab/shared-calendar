@@ -100,6 +100,42 @@ test('mergeIntervals: łączy nakładające się i stykające przedziały', () =
     [{ s: 1, e: 4 }, { s: 5, e: 10 }]);
 });
 
+/* ---------- Recurrence ---------- */
+test('Powtarzanie: „Nie powtarzaj” → tylko jeden dzień', () => {
+  assertEqual(expandRecurrence('2026-11-09', 'none', '2026-12-31'), ['2026-11-09']);
+});
+
+test('Powtarzanie: dni robocze pon–nd → 5 dni (bez weekendu)', () => {
+  assertEqual(expandRecurrence('2026-11-09', 'weekdays', '2026-11-15'),
+    ['2026-11-09', '2026-11-10', '2026-11-11', '2026-11-12', '2026-11-13']);
+});
+
+test('Powtarzanie: dni robocze zaczynające się w sobotę pomijają weekend', () => {
+  assertEqual(expandRecurrence('2026-11-14', 'weekdays', '2026-11-17'), ['2026-11-16', '2026-11-17']);
+});
+
+test('Powtarzanie: codziennie przez przełom miesiąca', () => {
+  assertEqual(expandRecurrence('2026-11-29', 'daily', '2026-12-02'),
+    ['2026-11-29', '2026-11-30', '2026-12-01', '2026-12-02']);
+});
+
+test('Powtarzanie: co tydzień w ten sam dzień tygodnia', () => {
+  assertEqual(expandRecurrence('2026-11-09', 'weekly', '2026-11-30'),
+    ['2026-11-09', '2026-11-16', '2026-11-23', '2026-11-30']);
+});
+
+test('Powtarzanie: zmiana czasu (marzec) nie przesuwa dat', () => {
+  assertEqual(expandRecurrence('2027-03-27', 'daily', '2027-03-29'), ['2027-03-27', '2027-03-28', '2027-03-29']);
+});
+
+test('Powtarzanie: data końcowa przed początkową → brak dni', () => {
+  assertEqual(expandRecurrence('2026-11-09', 'daily', '2026-11-01'), []);
+});
+
+test('Powtarzanie: limit liczby zajęć', () => {
+  assertEqual(expandRecurrence('2026-01-01', 'daily', '2030-01-01', 10).length, 10);
+});
+
 /* ---------- Render ---------- */
 const passed = results.filter(r => r.ok).length;
 const summary = document.getElementById('summary');

@@ -19,8 +19,9 @@ service cloud.firestore {
     }
 
     function validEntry(d) {
-      return d.keys().hasOnly(['uid', 'date', 'start', 'end', 'note'])
+      return d.keys().hasOnly(['uid', 'date', 'start', 'end', 'note', 'seriesId'])
         && d.keys().hasAll(['uid', 'date', 'start', 'end', 'note'])
+        && (!('seriesId' in d) || (d.seriesId is string && d.seriesId.size() <= 40))
         && d.uid == request.auth.uid
         && d.date is string && d.date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
         && d.start is string && d.start.matches('^[0-9]{2}:[0-9]{2}$')
