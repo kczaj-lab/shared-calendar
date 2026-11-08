@@ -4,8 +4,8 @@
    Configuration
    ========================================================== */
 const CONFIG = {
-  dayStartHour: 9,   // availability window start (09:00)
-  dayEndHour: 22,    // availability window end (22:00)
+  dayStartHour: 8,   // availability window start (08:00)
+  dayEndHour: 23,    // availability window end (23:00)
   slotMinutes: 30,   // grid resolution
 };
 
@@ -519,7 +519,7 @@ function openEntryDialog(entry, defaults = {}) {
   };
 
   editingId = entry ? entry.id : null;
-  $('entryTitle').textContent = entry ? 'Edytuj zajętość' : 'Dodaj zajętość';
+  $('entryTitle').textContent = entry ? 'Edytuj zajęcie' : 'Dodaj zajęcie';
   $('entryWho').style.cssText = userStyle(user);
   $('entryWho').innerHTML = `<span class="avatar">${user.name[0]}</span><span>${user.name} — zajęta</span>`;
   $('fDate').value = values.date;
@@ -564,7 +564,7 @@ $('entryForm').addEventListener('submit', e => {
   renderWeekRange();
   renderDayStrip();
   renderCalendar();
-  showToast(editingId ? 'Zmiany zapisane.' : 'Zajętość dodana.');
+  showToast(editingId ? 'Zmiany zapisane.' : 'Zajęcie dodane.');
 });
 
 $('deleteBtn').addEventListener('click', () => {
