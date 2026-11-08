@@ -1,0 +1,11 @@
+# Local Claude Code settings (personal, not shared)
+.claude/settings.local.json
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Secrets (Phase 2 — never commit)
+.env
+.env.*
