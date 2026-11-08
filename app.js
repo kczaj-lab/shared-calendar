@@ -492,24 +492,25 @@ function repeatError(date, mode, until) {
   return '';
 }
 
-/* Adding: a range longer than one day repeats; same day = single entry */
 function currentRepeatMode() {
-  if (editingEntry) return 'none';
-  const date = $('fDate').value, until = $('fUntil').value;
-  return DATE_RE.test(date) && DATE_RE.test(until) && until !== date ? $('fRepeat').value : 'none';
+  return editingEntry ? 'none' : $('fRepeat').value;
 }
 
+/* "Powtarzaj od dnia" mirrors "Dzień"; "do dnia" defaults to 4 weeks later */
 function updateRepeatUi() {
   const date = $('fDate').value;
-  if (DATE_RE.test(date)) {
-    $('fUntil').min = date;
-    if (!DATE_RE.test($('fUntil').value) || $('fUntil').value < date) $('fUntil').value = date;
-  }
   const mode = currentRepeatMode();
   const repeating = mode !== 'none';
-  $('repeatField').hidden = !repeating;
+  $('periodRow').hidden = !repeating;
   $('repeatHint').hidden = !repeating;
   if (!repeating) return;
+  if (DATE_RE.test(date)) {
+    $('fFrom').value = date;
+    $('fUntil').min = date;
+    if (!DATE_RE.test($('fUntil').value) || $('fUntil').value < date) {
+      $('fUntil').value = toDateKey(addDays(parseDateKey(date), 27));
+    }
+  }
   const err = repeatError(date, mode, $('fUntil').value);
   if (err) { $('repeatHint').textContent = err; return; }
   $('repeatHint').textContent = `Zostanie dodanych: ${zajec(expandRecurrence(date, mode, $('fUntil').value).length)}.`;
@@ -544,11 +545,10 @@ function openEntryDialog(entry, defaults = {}) {
   editingEntry = entry || null;
   $('entryTitle').textContent = entry ? 'Edytuj zajęcie' : 'Dodaj zajęcie';
 
-  // Date range: only when adding (default: a single day). Editing shows one "Dzień" field.
-  $('untilField').hidden = !!entry;
-  $('dateLabel').textContent = entry ? 'Dzień' : 'Od dnia';
-  $('fUntil').value = values.date;
-  $('fRepeat').value = 'daily';
+  // Repeat: only when adding. Default "Nie powtarzaj".
+  $('repeatBox').hidden = !!entry;
+  $('fRepeat').value = 'none';
+  $('fUntil').value = '';
   updateRepeatUi();
 
   // Series scope: only when editing an entry that belongs to a series
@@ -584,6 +584,10 @@ function resetDeleteButton() {
 }
 
 ['fRepeat', 'fUntil', 'fDate'].forEach(id => $(id).addEventListener('change', updateRepeatUi));
+$('fFrom').addEventListener('change', () => {
+  if (DATE_RE.test($('fFrom').value)) $('fDate').value = $('fFrom').value;
+  updateRepeatUi();
+});
 $('fSeries').addEventListener('change', () => {
   // When editing the whole series, only times and description change — each entry keeps its own date
   $('fDate').disabled = $('fSeries').checked;

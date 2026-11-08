@@ -153,17 +153,10 @@
 
       <div class="who" id="entryWho"></div>
 
-      <!-- Date range (adding) or single day (editing) -->
-      <div class="field-row" id="dateRow">
-        <label class="field">
-          <span id="dateLabel">Od dnia</span>
-          <input type="date" id="fDate" required>
-        </label>
-        <label class="field" id="untilField">
-          <span>Do dnia</span>
-          <input type="date" id="fUntil">
-        </label>
-      </div>
+      <label class="field">
+        <span>Dzień</span>
+        <input type="date" id="fDate" required>
+      </label>
       <div class="field-row">
         <label class="field">
           <span>Od godziny</span>
@@ -175,16 +168,29 @@
         </label>
       </div>
 
-      <!-- Only when the date range has more than one day -->
-      <label class="field" id="repeatField" hidden>
-        <span>Które dni z tego okresu?</span>
-        <select id="fRepeat">
-          <option value="daily">Codziennie</option>
-          <option value="weekdays">Tylko dni robocze (pon–pt)</option>
-          <option value="weekly">Raz w tygodniu (ten sam dzień tygodnia)</option>
-        </select>
-      </label>
-      <p class="field-hint" id="repeatHint" hidden></p>
+      <!-- Only when adding: repeat → then choose the period -->
+      <div class="repeat-box" id="repeatBox">
+        <label class="field">
+          <span>Czy powtarzać?</span>
+          <select id="fRepeat">
+            <option value="none">Nie powtarzaj</option>
+            <option value="weekdays">W dni robocze (pon–pt)</option>
+            <option value="daily">Codziennie</option>
+            <option value="weekly">Co tydzień (ten sam dzień tygodnia)</option>
+          </select>
+        </label>
+        <div class="field-row" id="periodRow" hidden>
+          <label class="field">
+            <span>Powtarzaj od dnia</span>
+            <input type="date" id="fFrom">
+          </label>
+          <label class="field">
+            <span>do dnia</span>
+            <input type="date" id="fUntil">
+          </label>
+        </div>
+        <p class="field-hint" id="repeatHint" hidden></p>
+      </div>
 
       <!-- Only when editing an entry that belongs to a series -->
       <label class="check" id="seriesScope" hidden>
