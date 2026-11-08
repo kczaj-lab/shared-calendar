@@ -62,9 +62,7 @@ function parseDateKey(key) {
   return new Date(y, m - 1, d);
 }
 
-/* Time helpers: "HH:MM" <-> minutes since midnight */
-function toMinutes(hhmm) { const [h, m] = hhmm.split(':').map(Number); return h * 60 + m; }
-function fromMinutes(min) { return `${pad2(Math.floor(min / 60))}:${pad2(min % 60)}`; }
+/* toMinutes / fromMinutes / findCommonFreeSlots come from availability.js */
 
 function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, ch => (
@@ -249,8 +247,45 @@ function renderCalendar() {
   }
 
   $('calendar').innerHTML = html;
+  const freeSlots = computeFreeSlots();
+  renderFreeBlocks(freeSlots);
   renderEntries();
   renderNowLine();
+  renderFreeList(freeSlots);
+}
+
+/* Common free slots for the visible week (past days / past hours skipped) */
+function computeFreeSlots() {
+  const now = new Date();
+  const dateKeys = Array.from({ length: 7 }, (_, i) => toDateKey(addDays(state.weekStart, i)));
+  return findCommonFreeSlots(entryStore.list, dateKeys, {
+    dayStartMin: CONFIG.dayStartHour * 60,
+    dayEndMin: CONFIG.dayEndHour * 60,
+    minDurationMin: state.minDuration * 60,
+    todayKey: toDateKey(now),
+    nowMin: now.getHours() * 60 + now.getMinutes(),
+    slotMinutes: CONFIG.slotMinutes,
+  });
+}
+
+function formatDuration(min) {
+  const h = Math.floor(min / 60), m = min % 60;
+  return m ? `${h} h ${m} min` : `${h} h`;
+}
+
+function renderFreeBlocks(slots) {
+  const winStart = CONFIG.dayStartHour * 60;
+  const pxPerMin = slotHeight() / CONFIG.slotMinutes;
+  for (const slot of slots) {
+    const body = document.querySelector(`.day-col[data-date="${slot.date}"] .day-body`);
+    if (!body) continue;
+    const short = slot.end - slot.start <= 60;
+    body.insertAdjacentHTML('beforeend', `
+      <div class="free-block${short ? ' short' : ''}" data-free="${slot.date}-${slot.start}"
+           style="top:${(slot.start - winStart) * pxPerMin + 1}px;height:${(slot.end - slot.start) * pxPerMin - 2}px">
+        <span>Wszystkie wolne · ${formatDuration(slot.end - slot.start)}</span>
+      </div>`);
+  }
 }
 
 function userById(id) { return USERS.find(u => u.id === id); }
@@ -316,13 +351,29 @@ function renderDurationPicker() {
   ).join('');
 }
 
-function renderFreeList() {
-  // Placeholder until busy entries + availability logic are implemented (Phase 1, steps 4–5)
-  $('freeList').innerHTML = `
-    <div class="empty-state">
-      Tu pojawią się terminy, w których wszystkie trzy jesteście wolne
-      przez co najmniej <strong>${state.minDuration} h</strong>.
-    </div>`;
+function renderFreeList(slots) {
+  const lastDayKey = toDateKey(addDays(state.weekStart, 6));
+  if (lastDayKey < toDateKey(new Date())) {
+    $('freeList').innerHTML = '<div class="empty-state">Ten tydzień już minął.</div>';
+    return;
+  }
+  if (!slots.length) {
+    $('freeList').innerHTML = `
+      <div class="empty-state">
+        W tym tygodniu nie ma wspólnego okna o długości min. <strong>${state.minDuration} h</strong>.
+        Spróbuj krótszego czasu albo następnego tygodnia.
+      </div>`;
+    return;
+  }
+  $('freeList').innerHTML = slots.map(slot => {
+    const day = parseDateKey(slot.date).toLocaleDateString('pl-PL', { weekday: 'long', day: 'numeric', month: 'short' });
+    return `
+      <button class="free-card" data-date="${slot.date}" data-start="${slot.start}">
+        <span class="free-day">${day.charAt(0).toUpperCase() + day.slice(1)}</span>
+        <span class="free-time">${fromMinutes(slot.start)}–${fromMinutes(slot.end)}</span>
+        <span class="free-len">${formatDuration(slot.end - slot.start)}</span>
+      </button>`;
+  }).join('');
 }
 
 function render() {
@@ -330,9 +381,8 @@ function render() {
   renderLegend();
   renderWeekRange();
   renderDayStrip();
-  renderCalendar();
   renderDurationPicker();
-  renderFreeList();
+  renderCalendar(); // also renders free slots + the list
 }
 
 /* ==========================================================
@@ -411,7 +461,20 @@ $('durationPicker').addEventListener('click', e => {
   state.minDuration = Number(btn.dataset.hours);
   storage.set(STORAGE_KEYS.minDuration, state.minDuration);
   renderDurationPicker();
-  renderFreeList();
+  renderCalendar();
+});
+
+// Clicking a suggested slot shows it in the calendar
+$('freeList').addEventListener('click', e => {
+  const card = e.target.closest('.free-card');
+  if (!card) return;
+  state.selectedDay = dayIndex(parseDateKey(card.dataset.date));
+  renderDayStrip();
+  renderCalendar();
+  const block = document.querySelector(`[data-free="${card.dataset.date}-${card.dataset.start}"]`);
+  if (!block) return;
+  block.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  block.classList.add('flash');
 });
 
 /* ==========================================================

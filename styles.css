@@ -198,6 +198,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   position: sticky; top: 20px;
   background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow);
   padding: 20px;
+  max-height: calc(100vh - 40px); overflow: auto;
 }
 .panel-title { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; margin: 0; }
 .panel-title svg { color: var(--mint-ink); }
@@ -244,6 +245,45 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .ev-note { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .event.short { display: flex; align-items: center; gap: 6px; white-space: nowrap; padding-top: 1px; padding-bottom: 1px; }
 .event.short .ev-note { display: none; }
+
+/* ---------- Common free slots on the grid ---------- */
+.free-block {
+  position: absolute; left: 3px; right: 3px; z-index: 0;
+  border-radius: 10px;
+  background: rgba(217, 243, 233, .75);
+  border: 1.5px dashed rgba(47, 158, 114, .45);
+  pointer-events: none; /* clicks fall through to the slot → add busy time */
+  overflow: hidden;
+}
+.free-block span {
+  display: block; padding: 4px 8px;
+  font-size: 11px; font-weight: 600; color: var(--mint-ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.free-block.short span { padding-top: 2px; }
+.free-block.flash { animation: flash 1.4s ease-out; }
+@keyframes flash {
+  0%, 40% { background: rgba(47, 158, 114, .35); box-shadow: 0 0 0 4px rgba(47, 158, 114, .15); }
+  100% { background: rgba(217, 243, 233, .75); box-shadow: none; }
+}
+
+/* ---------- Free slots list (right panel) ---------- */
+.free-card {
+  display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center;
+  width: 100%; padding: 12px 14px; text-align: left;
+  border: 1px solid #CDEBDD; border-radius: var(--radius-sm);
+  background: #F4FBF8;
+  transition: background .15s, border-color .15s, transform .1s, box-shadow .15s;
+}
+.free-card:hover { background: var(--mint); border-color: #A9DCC5; box-shadow: 0 4px 12px rgba(47, 158, 114, .1); }
+.free-card:active { transform: scale(.98); }
+.free-day { font-size: 12px; color: var(--text-2); grid-column: 1; }
+.free-time { font-size: 15px; font-weight: 600; grid-column: 1; font-variant-numeric: tabular-nums; }
+.free-len {
+  grid-column: 2; grid-row: 1 / span 2;
+  font-size: 12px; font-weight: 600; color: var(--mint-ink);
+  background: #fff; padding: 3px 8px; border-radius: 999px;
+}
 
 /* ---------- Entry dialog ---------- */
 dialog.sheet {
@@ -315,7 +355,7 @@ dialog.sheet::backdrop { background: rgba(41, 37, 54, .25); backdrop-filter: blu
 /* Tablet / small laptop: free panel moves under the calendar */
 @media (max-width: 1100px) {
   .app { grid-template-columns: 220px minmax(0, 1fr); }
-  .free-panel { grid-column: 2; position: static; }
+  .free-panel { grid-column: 2; position: static; max-height: none; }
 }
 
 /* Phone */

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shared Calendar — testy</title>
+  <style>
+    body { font-family: Inter, system-ui, sans-serif; background: #FAF9FD; color: #292536; margin: 0; padding: 24px 16px; }
+    main { max-width: 760px; margin: 0 auto; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    #summary { font-weight: 600; margin: 0 0 16px; }
+    #summary.ok { color: #2F9E72; } #summary.fail { color: #C2415B; }
+    ul { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; }
+    li { background: #fff; border-radius: 12px; padding: 10px 14px; box-shadow: 0 1px 3px rgba(41,37,54,.06); }
+    li.pass::before { content: "✓ "; color: #2F9E72; font-weight: 700; }
+    li.fail::before { content: "✗ "; color: #C2415B; font-weight: 700; }
+    li pre { margin: 6px 0 0; font-size: 12px; color: #C2415B; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Testy: wspólne wolne terminy</h1>
+    <p id="summary"></p>
+    <ul id="results"></ul>
+  </main>
+  <script src="availability.js"></script>
+  <script src="tests.js"></script>
+</body>
+</html>
