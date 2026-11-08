@@ -492,14 +492,24 @@ function repeatError(date, mode, until) {
   return '';
 }
 
+/* Adding: a range longer than one day repeats; same day = single entry */
+function currentRepeatMode() {
+  if (editingEntry) return 'none';
+  const date = $('fDate').value, until = $('fUntil').value;
+  return DATE_RE.test(date) && DATE_RE.test(until) && until !== date ? $('fRepeat').value : 'none';
+}
+
 function updateRepeatUi() {
-  const mode = $('fRepeat').value;
   const date = $('fDate').value;
+  if (DATE_RE.test(date)) {
+    $('fUntil').min = date;
+    if (!DATE_RE.test($('fUntil').value) || $('fUntil').value < date) $('fUntil').value = date;
+  }
+  const mode = currentRepeatMode();
   const repeating = mode !== 'none';
-  $('untilField').hidden = !repeating;
+  $('repeatField').hidden = !repeating;
   $('repeatHint').hidden = !repeating;
   if (!repeating) return;
-  if (DATE_RE.test(date)) $('fUntil').min = date;
   const err = repeatError(date, mode, $('fUntil').value);
   if (err) { $('repeatHint').textContent = err; return; }
   $('repeatHint').textContent = `Zostanie dodanych: ${zajec(expandRecurrence(date, mode, $('fUntil').value).length)}.`;
@@ -534,10 +544,11 @@ function openEntryDialog(entry, defaults = {}) {
   editingEntry = entry || null;
   $('entryTitle').textContent = entry ? 'Edytuj zajęcie' : 'Dodaj zajęcie';
 
-  // Repeat: only when adding. Default end = 4 weeks later.
-  $('repeatRow').hidden = !!entry;
-  $('fRepeat').value = 'none';
-  $('fUntil').value = toDateKey(addDays(parseDateKey(values.date), 27));
+  // Date range: only when adding (default: a single day). Editing shows one "Dzień" field.
+  $('untilField').hidden = !!entry;
+  $('dateLabel').textContent = entry ? 'Dzień' : 'Od dnia';
+  $('fUntil').value = values.date;
+  $('fRepeat').value = 'daily';
   updateRepeatUi();
 
   // Series scope: only when editing an entry that belongs to a series
@@ -601,7 +612,7 @@ $('entryForm').addEventListener('submit', async e => {
   const data = { date, start, end, note };
   let message;
   if (!editingEntry) {
-    const mode = $('fRepeat').value;
+    const mode = currentRepeatMode();
     const until = $('fUntil').value;
     const err = repeatError(date, mode, until);
     if (err) { $('formError').textContent = err; return; }

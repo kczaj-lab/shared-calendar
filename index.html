@@ -153,36 +153,37 @@
 
       <div class="who" id="entryWho"></div>
 
-      <label class="field">
-        <span>Data</span>
-        <input type="date" id="fDate" required>
-      </label>
-      <div class="field-row">
+      <!-- Date range (adding) or single day (editing) -->
+      <div class="field-row" id="dateRow">
         <label class="field">
-          <span>Od</span>
-          <select id="fStart"></select>
+          <span id="dateLabel">Od dnia</span>
+          <input type="date" id="fDate" required>
         </label>
-        <label class="field">
-          <span>Do</span>
-          <select id="fEnd"></select>
-        </label>
-      </div>
-      <!-- Only when adding: repeat the entry -->
-      <div class="field-row" id="repeatRow">
-        <label class="field">
-          <span>Powtarzaj</span>
-          <select id="fRepeat">
-            <option value="none">Nie powtarzaj</option>
-            <option value="weekdays">W dni robocze (pon–pt)</option>
-            <option value="daily">Codziennie</option>
-            <option value="weekly">Co tydzień</option>
-          </select>
-        </label>
-        <label class="field" id="untilField" hidden>
+        <label class="field" id="untilField">
           <span>Do dnia</span>
           <input type="date" id="fUntil">
         </label>
       </div>
+      <div class="field-row">
+        <label class="field">
+          <span>Od godziny</span>
+          <select id="fStart"></select>
+        </label>
+        <label class="field">
+          <span>Do godziny</span>
+          <select id="fEnd"></select>
+        </label>
+      </div>
+
+      <!-- Only when the date range has more than one day -->
+      <label class="field" id="repeatField" hidden>
+        <span>Które dni z tego okresu?</span>
+        <select id="fRepeat">
+          <option value="daily">Codziennie</option>
+          <option value="weekdays">Tylko dni robocze (pon–pt)</option>
+          <option value="weekly">Raz w tygodniu (ten sam dzień tygodnia)</option>
+        </select>
+      </label>
       <p class="field-hint" id="repeatHint" hidden></p>
 
       <!-- Only when editing an entry that belongs to a series -->
