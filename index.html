@@ -50,6 +50,19 @@
         </button>
       </header>
 
+      <!-- How-to + button opening the free-time panel (button: tablet/phone only) -->
+      <section class="hint-card">
+        <ol class="steps">
+          <li><span class="step-no">1</span>Dodaj swoje zajętości w kalendarzu</li>
+          <li><span class="step-no">2</span>Sprawdź wspólne wolne terminy</li>
+        </ol>
+        <button class="btn free-toggle" id="freeToggle" aria-controls="freePanel" aria-expanded="false">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          Wspólne wolne terminy
+          <span class="badge" id="freeCount">0</span>
+        </button>
+      </section>
+
       <!-- Mobile only: pick one day of the week -->
       <nav class="day-strip" id="dayStrip" aria-label="Wybierz dzień"></nav>
 
@@ -61,16 +74,23 @@
     </main>
 
     <!-- Right panel: common free time -->
-    <aside class="free-panel">
-      <h2 class="panel-title">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-        Wspólne wolne terminy
-      </h2>
+    <aside class="free-panel" id="freePanel" aria-label="Wspólne wolne terminy">
+      <div class="panel-head">
+        <h2 class="panel-title">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          Wspólne wolne terminy
+        </h2>
+        <button type="button" class="icon-btn panel-close" id="freeClose" aria-label="Zamknij">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </div>
       <p class="muted">Kiedy wszystkie trzy jesteście wolne</p>
       <div class="segmented" id="durationPicker" role="radiogroup" aria-label="Minimalny czas spotkania"></div>
       <div class="free-list" id="freeList"></div>
     </aside>
   </div>
+
+  <div class="free-backdrop" id="freeBackdrop"></div>
 
   <button class="fab" id="fab" aria-label="Dodaj zajętość">
     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>

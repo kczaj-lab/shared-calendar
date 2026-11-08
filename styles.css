@@ -200,6 +200,34 @@ button { font: inherit; color: inherit; cursor: pointer; }
   padding: 20px;
   max-height: calc(100vh - 40px); overflow: auto;
 }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.panel-close { display: none; }
+.free-backdrop { display: none; }
+
+/* ---------- How-to hint + free-time toggle ---------- */
+.hint-card {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  padding: 10px 14px; border-radius: var(--radius);
+  background: rgba(255, 255, 255, .7); border: 1px solid var(--line);
+}
+.steps { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px 18px; flex-wrap: wrap; color: var(--text-2); font-size: 13px; }
+.steps li { display: flex; align-items: center; gap: 8px; }
+.step-no {
+  width: 20px; height: 20px; border-radius: 50%; flex: none;
+  display: grid; place-items: center;
+  background: var(--lavender); color: var(--primary); font-size: 11px; font-weight: 700;
+}
+.free-toggle {
+  display: none; /* shown on tablet / phone */
+  background: var(--mint); color: #1F6F50; border-color: #BFE6D5;
+}
+.free-toggle:hover { background: #C9EDDF; }
+.badge {
+  min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px;
+  display: inline-grid; place-items: center;
+  background: #fff; color: var(--mint-ink); font-size: 12px; font-weight: 700;
+}
+
 .panel-title { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; margin: 0; }
 .panel-title svg { color: var(--mint-ink); }
 .muted { color: var(--text-2); margin: 4px 0 16px; }
@@ -352,10 +380,34 @@ dialog.sheet::backdrop { background: rgba(41, 37, 54, .25); backdrop-filter: blu
    Responsive
    ========================================================== */
 
-/* Tablet / small laptop: free panel moves under the calendar */
+/* Tablet / phone: free-time panel opens as a bottom sheet from the top button */
 @media (max-width: 1100px) {
   .app { grid-template-columns: 220px minmax(0, 1fr); }
-  .free-panel { grid-column: 2; position: static; max-height: none; }
+
+  .free-toggle { display: inline-flex; }
+
+  .free-panel {
+    position: fixed; z-index: 40;
+    left: 50%; bottom: 0; top: auto;
+    width: min(560px, 100%);
+    max-height: 85vh; overflow: auto;
+    border-radius: 20px 20px 0 0;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+    box-shadow: 0 -12px 48px rgba(41, 37, 54, .16);
+    transform: translate(-50%, 100%);
+    visibility: hidden;
+    transition: transform .25s ease, visibility .25s;
+  }
+  body.free-open .free-panel { transform: translate(-50%, 0); visibility: visible; }
+  .panel-close { display: grid; }
+
+  .free-backdrop {
+    display: block; position: fixed; inset: 0; z-index: 35;
+    background: rgba(41, 37, 54, .25); backdrop-filter: blur(3px);
+    opacity: 0; pointer-events: none; transition: opacity .25s;
+  }
+  body.free-open .free-backdrop { opacity: 1; pointer-events: auto; }
+  body.free-open { overflow: hidden; }
 }
 
 /* Phone */
@@ -373,7 +425,9 @@ dialog.sheet::backdrop { background: rgba(41, 37, 54, .25); backdrop-filter: blu
   .user-name { font-size: 12px; }
   .avatar { width: 36px; height: 36px; }
 
-  .free-panel { grid-column: 1; }
+  .hint-card { padding: 10px 12px; gap: 10px; }
+  .steps { flex-direction: column; gap: 6px; font-size: 12px; }
+  .free-toggle { width: 100%; justify-content: center; height: 44px; }
 
   .week-range { font-size: 16px; }
   .add-btn { display: none; }

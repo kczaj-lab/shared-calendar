@@ -352,6 +352,7 @@ function renderDurationPicker() {
 }
 
 function renderFreeList(slots) {
+  $('freeCount').textContent = slots.length;
   const lastDayKey = toDateKey(addDays(state.weekStart, 6));
   if (lastDayKey < toDateKey(new Date())) {
     $('freeList').innerHTML = '<div class="empty-state">Ten tydzień już minął.</div>';
@@ -464,10 +465,23 @@ $('durationPicker').addEventListener('click', e => {
   renderCalendar();
 });
 
+// Free-time panel (bottom sheet on tablet / phone)
+function setFreePanel(open) {
+  document.body.classList.toggle('free-open', open);
+  $('freeToggle').setAttribute('aria-expanded', String(open));
+}
+$('freeToggle').addEventListener('click', () => setFreePanel(true));
+$('freeClose').addEventListener('click', () => setFreePanel(false));
+$('freeBackdrop').addEventListener('click', () => setFreePanel(false));
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.body.classList.contains('free-open')) setFreePanel(false);
+});
+
 // Clicking a suggested slot shows it in the calendar
 $('freeList').addEventListener('click', e => {
   const card = e.target.closest('.free-card');
   if (!card) return;
+  setFreePanel(false);
   state.selectedDay = dayIndex(parseDateKey(card.dataset.date));
   renderDayStrip();
   renderCalendar();
