@@ -779,6 +779,31 @@ cloud.watchAuth(user => {
   }, showError);
 });
 
+/* In-app browsers (Messenger, Facebook, Instagram…) block Google sign-in.
+   Detect them and show "open in Safari / Chrome" instructions instead. ?inapp=1 forces it (testing). */
+const IN_APP_RE = /FBAN|FBAV|FB_IAB|FBIOS|Messenger|Instagram|Line\/|Snapchat|TikTok|musical_ly/i;
+const isInAppBrowser = IN_APP_RE.test(navigator.userAgent) || new URLSearchParams(location.search).has('inapp');
+const appUrl = location.origin + location.pathname;
+
+if (isInAppBrowser) {
+  $('signInBtn').hidden = true;
+  $('inAppNote').hidden = false;
+  if (/Android/i.test(navigator.userAgent)) {
+    // Android: an intent link opens the page directly in Chrome
+    $('openChromeBtn').href = `intent://${location.host}${location.pathname}#Intent;scheme=https;package=com.android.chrome;end`;
+    $('openChromeBtn').hidden = false;
+  }
+}
+
+$('copyLinkBtn').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(appUrl);
+    showToast('Skopiowano link. Wklej go w Safari lub Chrome.');
+  } catch {
+    window.prompt('Skopiuj ten link i wklej go w Safari lub Chrome:', appUrl);
+  }
+});
+
 $('signInBtn').addEventListener('click', async () => {
   try {
     await cloud.signInWithGoogle();

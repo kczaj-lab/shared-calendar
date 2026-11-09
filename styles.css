@@ -132,6 +132,17 @@ button { font: inherit; color: inherit; cursor: pointer; }
   box-shadow: 0 1px 3px rgba(41, 37, 54, .08);
 }
 .google-btn:hover { background: var(--lavender); border-color: var(--lavender-border); }
+.inapp-note {
+  width: 100%; text-align: left;
+  padding: 14px 16px; border-radius: var(--radius-sm);
+  background: #FFF6E0; border: 1px solid #F5DFA8; color: var(--text);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.inapp-note p, .inapp-note ol { margin: 0; color: var(--text-2); font-size: 13px; }
+.inapp-note ol { padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.inapp-note b { color: var(--text); }
+.inapp-note .btn { width: 100%; justify-content: center; height: 44px; text-decoration: none; }
+
 .uid-box {
   width: 100%; padding: 12px; border-radius: var(--radius-sm);
   background: var(--line-soft); display: flex; flex-direction: column; gap: 8px; align-items: center;
